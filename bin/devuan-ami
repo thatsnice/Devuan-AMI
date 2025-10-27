@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+require('coffeescript/register');
+const main = require('../src/app.coffee');
+main(process);

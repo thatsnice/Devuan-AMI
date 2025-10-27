@@ -1,0 +1,38 @@
+{
+  "name": "devuan-ami",
+  "version": "0.1.0",
+  "description": "Build Devuan AWS Machine Images (AMIs) for EC2",
+  "main": "src/app.coffee",
+  "bin": {
+    "devuan-ami": "./bin/devuan-ami"
+  },
+  "scripts": {
+    "build": "coffee -c -o lib/ src/",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thatsnice/Devuan-AMI.git"
+  },
+  "keywords": [
+    "devuan",
+    "aws",
+    "ami",
+    "ec2",
+    "debootstrap",
+    "cloud"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=16.17.0"
+  },
+  "bugs": {
+    "url": "https://github.com/thatsnice/Devuan-AMI/issues"
+  },
+  "homepage": "https://github.com/thatsnice/Devuan-AMI#readme",
+  "dependencies": {
+    "coffeescript": "^2.7.0"
+  }
+}
