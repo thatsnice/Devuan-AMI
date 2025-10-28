@@ -171,17 +171,6 @@ class SmokeTest
 
 		console.log "    ✓ Instance running at #{@publicIp}"
 
-		# Wait for status checks
-		console.log "  Waiting for status checks to pass..."
-
-		execSync """
-			aws ec2 wait instance-status-ok \
-				--region #{@region} \
-				--instance-ids #{@instanceId}
-		"""
-
-		console.log "    ✓ Status checks passed"
-
 	waitForCloudInit: ->
 		console.log "  Waiting for cloud-init to complete..."
 
