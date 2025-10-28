@@ -106,13 +106,8 @@ class Configurator
 			    timeout: 10
 			    max_wait: 30
 
-			# Preserve traditional network interface names (eth0, eth1, etc.)
-			network:
-			  version: 2
-			  ethernets:
-			    eth0:
-			      dhcp4: true
-			      dhcp6: false
+			# Let cloud-init auto-configure networking using ENI
+			# Don't specify network config - let it detect and use ifupdown
 
 			# System info
 			system_info:
@@ -121,6 +116,7 @@ class Configurator
 			    groups: [adm, sudo]
 			    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
 			    shell: /bin/bash
+			    lock_passwd: true
 
 			# Disable root login
 			disable_root: true

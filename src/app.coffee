@@ -193,7 +193,9 @@ main = (processObj = process) ->
 
 	# Generate AMI name if not provided
 	unless values.name
-		timestamp = new Date().toISOString().split('T')[0]
+		# Include time to avoid conflicts when building multiple times per day
+		now = new Date()
+		timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5)  # 2025-10-28T12-34-56
 		values.name = "Devuan-#{values.release}-#{values.arch}-#{timestamp}"
 
 	# Check for previous build (state already created above if --resume)

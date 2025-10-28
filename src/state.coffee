@@ -39,8 +39,19 @@ class State
 	saveOptions: (opts) ->
 		mkdirSync @workDir, recursive: true
 
+		# Load existing options to merge with
+		existing = {}
+		if existsSync @optionsFile
+			content = readFileSync @optionsFile, 'utf8'
+			for line in content.split('\n') when line.trim()
+				[key, value] = line.split('=')
+				existing[key] = value if key
+
+		# Merge new options with existing
+		merged = Object.assign {}, existing, opts
+
 		lines = []
-		for key, value of opts when key isnt 'completed' and typeof value isnt 'object'
+		for key, value of merged when key isnt 'completed' and typeof value isnt 'object'
 			lines.push "#{key}=#{value}"
 
 		writeFileSync @optionsFile, lines.join('\n')
@@ -68,7 +79,7 @@ class State
 	# Set a state value
 	set: (key, value) ->
 		@state[key] = value
-		# Persist to options file
+		# Persist to options file (merge with existing)
 		@saveOptions @state
 
 	# Detect what's been done by checking filesystem and state file
