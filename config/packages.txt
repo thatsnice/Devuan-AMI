@@ -9,9 +9,16 @@ grub-pc
 cloud-init
 python3-cffi-backend
 
+# Networking
+ifupdown
+iproute2
+isc-dhcp-client
+
 # SSH access
 openssh-server
 systemd-standalone-sysusers
 
 # User management
 sudo
+adduser
+passwd

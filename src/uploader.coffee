@@ -19,12 +19,12 @@ class Uploader
 	# ====================================================================
 
 	upload: ->
-		# Convert to VMDK (skip if already done)
+		# Convert to VMDK streamOptimized (skip if already done)
 		unless @state.isCompleted('convert')
 			@convertToVmdk()
 			@state.complete 'convert'
 		else
-			console.log "  Converting image to VMDK format... (skipped, already done)"
+			console.log "  Converting to VMDK streamOptimized... (skipped, already done)"
 
 		# Upload to S3 (skip if already done and URI matches)
 		savedS3Uri = @state.get('s3-uri')
@@ -71,15 +71,17 @@ class Uploader
 		"s3://#{@bucket}/#{s3Key}"
 
 	convertToVmdk: ->
-		console.log "  Converting image to VMDK format..."
-		execSync "qemu-img convert -f raw -O vmdk #{@imagePath} #{@vmdkPath}"
+		console.log "  Converting to VMDK streamOptimized format..."
+		console.log "  (This compresses the image and makes upload faster)"
+		execSync "qemu-img convert -f raw -O vmdk -o subformat=streamOptimized #{@imagePath} #{@vmdkPath}"
 
 	uploadToS3: ->
 		# Use deterministic S3 key (no timestamp) so we can detect re-uploads
 		@s3Key = "devuan-ami-imports/#{@amiName}.vmdk"
 		@s3Uri = "s3://#{@bucket}/#{@s3Key}"
 
-		console.log "  Uploading to S3: #{@s3Uri}"
+		console.log "  Uploading VMDK to S3: #{@s3Uri}"
+		console.log "  (Compressed image - faster than RAW upload)"
 		execSync "aws s3 cp #{@vmdkPath} #{@s3Uri} --region #{@region}"
 
 	importSnapshot: ->
@@ -135,10 +137,12 @@ class Uploader
 				return snapshotId
 
 			if status in ['deleted', 'deleting']
-				throw new Error "Import task was deleted"
+				errorMsg = detail.StatusMessage or 'No error message provided'
+				throw new Error "Import task was deleted: #{errorMsg}"
 
 			if detail.StatusMessage
 				message = detail.StatusMessage
+				console.log "  Status: #{message}"
 				if message.includes('error') or message.includes('fail')
 					throw new Error "Import failed: #{message}"
 
@@ -181,15 +185,15 @@ class Uploader
 		amiId
 
 	cleanup: ->
-		console.log "  Cleaning up temporary files..."
+		console.log "  Cleaning up local temporary files..."
 
 		# Remove VMDK file
 		try
 			execSync "rm -f #{@vmdkPath}"
+			console.log "  Removed local VMDK file"
 		catch error
-			console.warn "Warning: Failed to remove #{@vmdkPath}"
+			console.warn "  Warning: Failed to remove #{@vmdkPath}"
 
-		# Optionally remove S3 object (keeping it for now for debugging)
-		# execSync "aws s3 rm #{@s3Uri} --region #{@region}"
+		# Note: Keeping S3 object for manual cleanup (lifecycle policy will delete after 7 days)
 
 module.exports = Uploader

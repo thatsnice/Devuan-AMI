@@ -161,8 +161,19 @@ main = (processObj = process) ->
 		if state.exists()
 			savedState = state.load()
 			# Merge saved options with command line (command line takes precedence)
+			# But only override if value wasn't explicitly provided on command line
 			for key, value of savedState when key isnt 'completed'
-				values[key] ?= value
+				# Skip if user explicitly provided this arg (check against defaults)
+				if key is 'region' and not proc.argv.includes('--region')
+					values[key] = value
+				else if key is 'release' and not proc.argv.includes('--release') and not proc.argv.includes('-r')
+					values[key] = value
+				else if key is 'arch' and not proc.argv.includes('--arch') and not proc.argv.includes('-a')
+					values[key] = value
+				else if key is 'disk-size' and not proc.argv.includes('--disk-size')
+					values[key] = value
+				else if key not in ['region', 'release', 'arch', 'disk-size']
+					values[key] ?= value
 		else
 			console.error "Error: --resume specified but no previous build found in #{values['work-dir']}"
 			proc.exit 1
