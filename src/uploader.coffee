@@ -1,6 +1,7 @@
 {execSync}    = require 'child_process'
 {join}        = require 'path'
 {readFileSync} = require 'fs'
+SmokeTest     = require './smoke-test'
 
 # ========================================================================
 # Uploader Class
@@ -12,6 +13,7 @@ class Uploader
 		@bucket    = @opts['s3-bucket']
 		@region    = @opts.region
 		@amiName   = @opts.name
+		@amiId     = null
 		@vmdkPath  = join @workDir, 'disk.vmdk'
 
 	# ====================================================================
@@ -56,11 +58,27 @@ class Uploader
 		@state.complete 'import'
 
 		# Register AMI
-		amiId = @registerAMI snapshotId
+		@amiId = @registerAMI snapshotId
+		@state.set 'ami-id', @amiId
 		@state.complete 'register'
 
+		# Run smoke test
+		unless @state.isCompleted('smoke-test')
+			smokeTest = new SmokeTest @opts, @amiId
+			passed    = smokeTest.run()
+
+			if passed
+				@state.complete 'smoke-test'
+			else
+				console.warn "\n⚠ Smoke test failed, but AMI was created successfully"
+				console.warn "  AMI ID: #{@amiId}"
+				console.warn "  You may want to investigate and fix issues before using this AMI"
+		else
+			console.log "\n=== Smoke Test ==="
+			console.log "  Smoke test already passed for this AMI"
+
 		@cleanup()
-		amiId
+		@amiId
 
 	# ====================================================================
 	# Upload Steps
