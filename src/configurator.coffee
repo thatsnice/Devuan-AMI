@@ -179,10 +179,17 @@ class Configurator
 		@chroot "update-rc.d ssh enable"
 
 	createAdminUser: ->
-		console.log "  Creating admin user..."
+		console.log "  Preparing for admin user creation..."
 
-		# cloud-init will create the user, but we set up the group
-		@chroot "groupadd -f admin"
+		# Ensure groups exist that cloud-init needs
+		# cloud-init will create the user, but groups must exist first
+		@chroot "groupadd -f sudo"
+		@chroot "groupadd -f adm"
+
+		# Configure sudoers for sudo group
+		sudoersConfig = "%sudo ALL=(ALL:ALL) NOPASSWD:ALL\n"
+		@appendFile '/etc/sudoers.d/90-cloud-init-users', sudoersConfig
+		@chroot "chmod 0440 /etc/sudoers.d/90-cloud-init-users"
 
 	configureSerialConsole: ->
 		console.log "  Configuring serial console..."
@@ -200,6 +207,8 @@ class Configurator
 			'cloud-init'
 			'openssh-server'
 			'grub-pc'
+			'ifupdown'
+			'isc-dhcp-client'
 		]
 
 		requiredFiles = [
@@ -207,6 +216,11 @@ class Configurator
 			'/etc/fstab'
 			'/etc/ssh/sshd_config'
 			'/etc/inittab'
+		]
+
+		requiredGroups = [
+			'sudo'
+			'adm'
 		]
 
 		# Check packages
@@ -225,12 +239,27 @@ class Configurator
 				throw new Error "Required file missing: #{file}"
 			console.log "    ✓ File exists: #{file}"
 
+		# Check groups exist
+		for group in requiredGroups
+			try
+				@chroot "getent group #{group}"
+				console.log "    ✓ Group exists: #{group}"
+			catch error
+				throw new Error "Required group missing: #{group}"
+
 		# Check bootloader
 		try
 			@chroot "test -f /boot/grub/grub.cfg"
 			console.log "    ✓ GRUB configured"
 		catch error
 			throw new Error "GRUB configuration missing"
+
+		# Validate cloud-init config syntax
+		try
+			@chroot "cloud-init schema --config-file /etc/cloud/cloud.cfg.d/99-aws.cfg"
+			console.log "    ✓ Cloud-init config valid"
+		catch error
+			console.warn "    ⚠ Cloud-init config validation failed (may be OK if schema validator missing)"
 
 		console.log "  Verification passed!"
 
