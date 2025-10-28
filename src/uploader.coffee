@@ -90,7 +90,6 @@ class Uploader
 
 	convertToVmdk: ->
 		console.log "  Converting to VMDK streamOptimized format..."
-		console.log "  (This compresses the image and makes upload faster)"
 		execSync "qemu-img convert -f raw -O vmdk -o subformat=streamOptimized #{@imagePath} #{@vmdkPath}"
 
 	uploadToS3: ->
@@ -99,7 +98,6 @@ class Uploader
 		@s3Uri = "s3://#{@bucket}/#{@s3Key}"
 
 		console.log "  Uploading VMDK to S3: #{@s3Uri}"
-		console.log "  (Compressed image - faster than RAW upload)"
 		execSync "aws s3 cp #{@vmdkPath} #{@s3Uri} --region #{@region}"
 
 	importSnapshot: ->

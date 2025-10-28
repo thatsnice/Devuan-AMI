@@ -81,10 +81,9 @@ class Configurator
 		@writeFile '/etc/fstab', fstab
 
 	configureNetwork: ->
-		console.log "  Configuring network (cloud-init managed)..."
+		console.log "  Configuring network..."
 
 		# Let cloud-init handle network configuration
-		# Disable traditional /etc/network/interfaces management
 		interfaces = """
 			# Network configuration is managed by cloud-init
 			# See /etc/cloud/cloud.cfg.d/ for configuration
