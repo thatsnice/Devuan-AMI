@@ -40,6 +40,27 @@ cd Devuan-AMI
 npm install
 ```
 
+## Development
+
+### Running Tests
+
+```bash
+:# Run all tests
+npm test
+
+:# Watch mode (re-runs on file changes)
+npm run test:watch
+```
+
+### Testing Strategy
+
+- **Unit tests**: CLI argument parsing, validation, error handling (using Node's built-in test runner)
+- **Pre-AMI verification**: Checks packages/files exist in chroot before upload (runs automatically)
+- **No linting**: Code style is consistent by convention, not tooling
+- **No integration tests**: Would require AWS resources and cost money
+
+Tests use process injection for testability - see `test/app.test.coffee`.
+
 ## Usage
 
 Basic usage:

@@ -7,7 +7,7 @@
 # ========================================================================
 
 class Uploader
-	constructor: (@opts, @imagePath) ->
+	constructor: (@opts, @imagePath, @state) ->
 		@workDir   = @opts['work-dir']
 		@bucket    = @opts['s3-bucket']
 		@region    = @opts.region
@@ -19,11 +19,46 @@ class Uploader
 	# ====================================================================
 
 	upload: ->
-		@convertToVmdk()
-		@uploadToS3()
-		importTaskId = @importSnapshot()
-		snapshotId   = @waitForImport importTaskId
-		amiId        = @registerAMI snapshotId
+		# Convert to VMDK (skip if already done)
+		unless @state.isCompleted('convert')
+			@convertToVmdk()
+			@state.complete 'convert'
+		else
+			console.log "  Converting image to VMDK format... (skipped, already done)"
+
+		# Upload to S3 (skip if already done and URI matches)
+		savedS3Uri = @state.get('s3-uri')
+		currentS3Uri = @generateS3Uri()
+
+		if @state.isCompleted('upload') and savedS3Uri is currentS3Uri
+			console.log "  Uploading to S3... (skipped, already uploaded)"
+			@s3Uri = savedS3Uri
+			@s3Key = @state.get('s3-key')
+		else
+			@uploadToS3()
+			@state.set 's3-uri', @s3Uri
+			@state.set 's3-key', @s3Key
+			@state.complete 'upload'
+
+		# Import snapshot (resume if interrupted)
+		savedTaskId = @state.get('import-task-id')
+
+		if savedTaskId and @state.isCompleted('import-started')
+			console.log "  Resuming import snapshot task: #{savedTaskId}"
+			importTaskId = savedTaskId
+		else
+			importTaskId = @importSnapshot()
+			@state.set 'import-task-id', importTaskId
+			@state.complete 'import-started'
+
+		snapshotId = @waitForImport importTaskId
+		@state.set 'snapshot-id', snapshotId
+		@state.complete 'import'
+
+		# Register AMI
+		amiId = @registerAMI snapshotId
+		@state.complete 'register'
+
 		@cleanup()
 		amiId
 
@@ -31,19 +66,21 @@ class Uploader
 	# Upload Steps
 	# ====================================================================
 
+	generateS3Uri: ->
+		s3Key = "devuan-ami-imports/#{@amiName}.vmdk"
+		"s3://#{@bucket}/#{s3Key}"
+
 	convertToVmdk: ->
 		console.log "  Converting image to VMDK format..."
 		execSync "qemu-img convert -f raw -O vmdk #{@imagePath} #{@vmdkPath}"
 
 	uploadToS3: ->
-		s3Key = "devuan-ami-imports/#{@amiName}-#{Date.now()}.vmdk"
-		s3Uri = "s3://#{@bucket}/#{s3Key}"
+		# Use deterministic S3 key (no timestamp) so we can detect re-uploads
+		@s3Key = "devuan-ami-imports/#{@amiName}.vmdk"
+		@s3Uri = "s3://#{@bucket}/#{@s3Key}"
 
-		console.log "  Uploading to S3: #{s3Uri}"
-		execSync "aws s3 cp #{@vmdkPath} #{s3Uri} --region #{@region}"
-
-		@s3Key = s3Key
-		@s3Uri = s3Uri
+		console.log "  Uploading to S3: #{@s3Uri}"
+		execSync "aws s3 cp #{@vmdkPath} #{@s3Uri} --region #{@region}"
 
 	importSnapshot: ->
 		console.log "  Creating import snapshot task..."

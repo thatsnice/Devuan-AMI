@@ -3,9 +3,13 @@
 {parseArgs}       = require 'util'
 {existsSync}      = require 'fs'
 {execSync}        = require 'child_process'
+{join}            = require 'path'
+readline          = require 'readline'
 Builder           = require './builder'
 Configurator      = require './configurator'
 Uploader          = require './uploader'
+State             = require './state'
+PermissionsChecker = require './permissions'
 
 VERSION = '0.1.0'
 
@@ -54,6 +58,10 @@ options =
 		description: 'Working directory for build artifacts'
 		default:     '/tmp/devuan-ami'
 
+	resume:
+		type:        'boolean'
+		description: 'Resume previous build without prompting'
+
 	help:
 		type:        'boolean'
 		short:       'h'
@@ -67,6 +75,16 @@ options =
 # ========================================================================
 # Helpers
 # ========================================================================
+
+askYesNo = (question) ->
+	return new Promise (resolve) ->
+		rl = readline.createInterface
+			input:  proc.stdin
+			output: proc.stdout
+
+		rl.question "#{question} [y/N] ", (answer) ->
+			rl.close()
+			resolve answer.toLowerCase() in ['y', 'yes']
 
 showHelp = ->
 	console.log """
@@ -84,6 +102,7 @@ showHelp = ->
 		  -n, --name <name>         AMI name (auto-generated if not specified)
 		      --disk-size <gb>      Disk size in GB (default: 8)
 		      --work-dir <path>     Work directory (default: /tmp/devuan-ami)
+		      --resume              Resume previous build without prompting
 		  -h, --help                Show this help
 		  -v, --version             Show version
 
@@ -122,14 +141,31 @@ main = (processObj = process) ->
 	proc = processObj
 
 	# Parse arguments
-	{values} = parseArgs {options, allowPositionals: false}
+	{values, positionals} = parseArgs
+		args:              proc.argv.slice(2)
+		options:           options
+		allowPositionals:  true
 
-	if values.help
+	# Handle positional commands
+	if positionals[0] in ['help', '--help', '-h'] or values.help
 		showHelp()
 
-	if values.version
+	if positionals[0] in ['version', '--version', '-v'] or values.version
 		console.log VERSION
 		proc.exit 0
+
+	# Load state early for resume functionality
+	state = new State values['work-dir']
+
+	if values.resume
+		if state.exists()
+			savedState = state.load()
+			# Merge saved options with command line (command line takes precedence)
+			for key, value of savedState when key isnt 'completed'
+				values[key] ?= value
+		else
+			console.error "Error: --resume specified but no previous build found in #{values['work-dir']}"
+			proc.exit 1
 
 	# Validate required options
 	unless values['s3-bucket']
@@ -139,10 +175,40 @@ main = (processObj = process) ->
 	# Check system requirements
 	checkRequirements()
 
+	# Check AWS permissions
+	permChecker = new PermissionsChecker values['s3-bucket'], values.region
+	unless permChecker.check()
+		proc.exit 1
+
 	# Generate AMI name if not provided
 	unless values.name
 		timestamp = new Date().toISOString().split('T')[0]
 		values.name = "Devuan-#{values.release}-#{values.arch}-#{timestamp}"
+
+	# Check for previous build (state already created above if --resume)
+	if state.exists()
+		progress = state.detectProgress()
+
+		if values.resume
+			console.log "Resuming previous build..."
+			state.load()
+		else
+			console.log "Found previous build in #{values['work-dir']}:"
+			console.log "  Disk image built:  #{if progress.built then '✓' else '✗'}"
+			console.log "  System configured: #{if progress.configured then '✓' else '✗'}"
+			console.log "  Converted to VMDK: #{if progress.converted then '✓' else '✗'}"
+			console.log ""
+
+			shouldResume = await askYesNo "Resume from previous build?"
+
+			unless shouldResume
+				console.log "Please remove #{values['work-dir']} or use a different --work-dir"
+				proc.exit 1
+
+			state.load()
+
+	# Save options for future resume
+	state.saveOptions values
 
 	console.log "Building Devuan AMI: #{values.name}"
 	console.log "  Release:    #{values.release}"
@@ -155,19 +221,30 @@ main = (processObj = process) ->
 
 	# Build pipeline
 	try
+		progress = state.detectProgress()
+
 		# 1. Create disk image with debootstrap
-		console.log "Step 1/3: Building disk image..."
-		builder = new Builder values
-		imagePath = builder.build()
+		unless progress.built
+			console.log "Step 1/3: Building disk image..."
+			builder = new Builder values
+			imagePath = builder.build()
+			state.complete 'build'
+		else
+			console.log "Step 1/3: Building disk image... (skipped, already done)"
+			imagePath = join values['work-dir'], 'disk.raw'
 
 		# 2. Configure system for AWS
-		console.log "\nStep 2/3: Configuring for AWS..."
-		configurator = new Configurator values, imagePath
-		configurator.configure()
+		unless progress.configured
+			console.log "\nStep 2/3: Configuring for AWS..."
+			configurator = new Configurator values, imagePath
+			configurator.configure()
+			state.complete 'configure'
+		else
+			console.log "\nStep 2/3: Configuring for AWS... (skipped, already done)"
 
 		# 3. Upload and register AMI
 		console.log "\nStep 3/3: Uploading to AWS..."
-		uploader = new Uploader values, imagePath
+		uploader = new Uploader values, imagePath, state
 		amiId = uploader.upload()
 
 		console.log "\n✓ AMI created successfully!"
@@ -176,6 +253,7 @@ main = (processObj = process) ->
 
 	catch error
 		console.error "\n✗ Build failed: #{error.message}"
+		console.error "You can resume with: sudo bin/devuan-ami --resume"
 		proc.exit 1
 
 # Export for testing, run if called directly

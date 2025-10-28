@@ -1,0 +1,17 @@
+# Packages installed during debootstrap
+# One package per line, blank lines and # comments ignored
+
+# Kernel and bootloader
+linux-image-cloud-amd64
+grub-pc
+
+# Cloud integration
+cloud-init
+python3-cffi-backend
+
+# SSH access
+openssh-server
+systemd-standalone-sysusers
+
+# User management
+sudo

@@ -26,6 +26,7 @@ class Configurator
 		@configureSSH()
 		@createAdminUser()
 		@configureSerialConsole()
+		@verifyInstallation()
 		@cleanupSystem()
 		@unmountAll()
 
@@ -194,6 +195,48 @@ class Configurator
 		# Add to /etc/inittab for SysVinit
 		inittabEntry = "T0:23:respawn:/sbin/getty -L ttyS0 115200 vt100\n"
 		@appendFile '/etc/inittab', inittabEntry
+
+	verifyInstallation: ->
+		console.log "  Verifying installation..."
+
+		# Essential packages that must be present
+		requiredPackages = [
+			'cloud-init'
+			'openssh-server'
+			'grub-pc'
+		]
+
+		requiredFiles = [
+			'/etc/cloud/cloud.cfg.d/99-aws.cfg'
+			'/etc/fstab'
+			'/etc/ssh/sshd_config'
+			'/etc/inittab'
+		]
+
+		# Check packages
+		for pkg in requiredPackages
+			try
+				@chroot "dpkg -l #{pkg} | grep '^ii'"
+				console.log "    ✓ Package installed: #{pkg}"
+			catch error
+				throw new Error "Required package missing: #{pkg}"
+
+		# Check files
+		for file in requiredFiles
+			fullPath = @mountDir + file
+			{existsSync} = require 'fs'
+			unless existsSync fullPath
+				throw new Error "Required file missing: #{file}"
+			console.log "    ✓ File exists: #{file}"
+
+		# Check bootloader
+		try
+			@chroot "test -f /boot/grub/grub.cfg"
+			console.log "    ✓ GRUB configured"
+		catch error
+			throw new Error "GRUB configuration missing"
+
+		console.log "  Verification passed!"
 
 	cleanupSystem: ->
 		console.log "  Cleaning up system..."

@@ -8,7 +8,8 @@
   },
   "scripts": {
     "build": "coffee -c -o lib/ src/",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test --require coffeescript/register test/*.test.coffee",
+    "test:watch": "node --test --watch --require coffeescript/register test/*.test.coffee"
   },
   "repository": {
     "type": "git",

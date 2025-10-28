@@ -1,5 +1,6 @@
 {execSync}      = require 'child_process'
 {mkdirSync}     = require 'fs'
+{readFileSync}  = require 'fs'
 {join}          = require 'path'
 
 # ========================================================================
@@ -91,18 +92,20 @@ class Builder
 		console.log "    Arch:    #{arch}"
 		console.log "    Mirror:  #{mirror}"
 
-		# Run debootstrap
-		# --variant=minbase: minimal installation
-		# --include: add essential packages for AWS
-		packages = [
-			'linux-image-cloud-amd64'
-			'grub-pc'
-			'cloud-init'
-			'openssh-server'
-			'sudo'
-		].join ','
+		# Load package list from config file
+		configPath = join __dirname, '../config/packages.txt'
+		content    = readFileSync configPath, 'utf8'
 
-		cmd = "debootstrap --variant=minbase --arch=#{arch} --include=#{packages} #{release} #{@mountDir} #{mirror}"
+		# Parse: one package per line, ignore comments and blank lines
+		packages = content
+			.split('\n')
+			.map (line) -> line.trim()
+			.filter (line) -> line and not line.startsWith('#')
+
+		packageList = packages.join ','
+		console.log "    Packages: #{packages.length} packages"
+
+		cmd = "debootstrap --variant=minbase --arch=#{arch} --include=#{packageList} #{release} #{@mountDir} #{mirror}"
 
 		try
 			execSync cmd, stdio: 'inherit'
