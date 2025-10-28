@@ -45,7 +45,7 @@ sudo devuan-ami \
 
 ## Architecture
 
-### Three-Phase Pipeline
+### Four-Phase Pipeline
 
 1. **Builder** (`src/builder.coffee`)
    - Creates raw disk image with `qemu-img`
@@ -58,17 +58,26 @@ sudo devuan-ami \
    - Mounts image and chroots into it
    - Configures fstab, network (via cloud-init), SSH
    - Installs GRUB bootloader with serial console support
-   - Creates admin user (managed by cloud-init)
+   - Prepares for admin user creation (managed by cloud-init)
    - Configures SysVinit services (not systemd)
    - Adds serial console to `/etc/inittab`
+   - Validates configuration (packages, groups, cloud-init syntax)
    - Cleans up logs and machine-id
 
 3. **Uploader** (`src/uploader.coffee`)
-   - Converts raw image to VMDK format
+   - Converts raw image to VMDK streamOptimized format (~50% compression)
    - Uploads to S3
    - Creates EC2 import-snapshot task
    - Polls for completion (10-30 minutes typical)
    - Registers snapshot as AMI with ENA support
+
+4. **Smoke Test** (`src/smoke-test.coffee`)
+   - Launches test instance in default VPC
+   - Waits for cloud-init to complete
+   - Verifies SSH connectivity
+   - Verifies network (eth0 has IP, internet reachable)
+   - Verifies sudo access for admin user
+   - Automatically cleans up all test resources
 
 ### Devuan-Specific Details
 
