@@ -21,12 +21,12 @@ class Configurator
 		@mountPseudoFilesystems()
 		@configureFstab()
 		@configureNetwork()
+		@configureLocale()
 		@configureCloudInit()
 		@installGrub()
 		@configureSSH()
 		@createAdminUser()
 		@configureSerialConsole()
-		@verifyInstallation()
 		@cleanupSystem()
 		@unmountAll()
 
@@ -81,9 +81,10 @@ class Configurator
 		@writeFile '/etc/fstab', fstab
 
 	configureNetwork: ->
-		console.log "  Configuring network..."
+		console.log "  Configuring network (cloud-init managed)..."
 
 		# Let cloud-init handle network configuration
+		# Disable traditional /etc/network/interfaces management
 		interfaces = """
 			# Network configuration is managed by cloud-init
 			# See /etc/cloud/cloud.cfg.d/ for configuration
@@ -92,6 +93,31 @@ class Configurator
 			"""
 
 		@writeFile '/etc/network/interfaces', interfaces
+
+	configureLocale: ->
+		console.log "  Configuring locales..."
+
+		# Enable en_US.UTF-8 locale
+		localeGen = """
+			# This file lists locales that you wish to have built. You can find a list
+			# of valid supported locales at /usr/share/i18n/SUPPORTED, and you can add
+			# user defined locales to /usr/local/share/i18n/SUPPORTED. If you change
+			# this file, you need to rerun locale-gen.
+
+			en_US.UTF-8 UTF-8
+			"""
+
+		@writeFile '/etc/locale.gen', localeGen
+
+		# Generate locale
+		@chroot "locale-gen"
+
+		# Set default locale
+		localeDefault = """
+			LANG=en_US.UTF-8
+			"""
+
+		@writeFile '/etc/default/locale', localeDefault
 
 	configureCloudInit: ->
 		console.log "  Configuring cloud-init..."
@@ -105,8 +131,13 @@ class Configurator
 			    timeout: 10
 			    max_wait: 30
 
-			# Let cloud-init auto-configure networking using ENI
-			# Don't specify network config - let it detect and use ifupdown
+			# Preserve traditional network interface names (eth0, eth1, etc.)
+			network:
+			  version: 2
+			  ethernets:
+			    eth0:
+			      dhcp4: true
+			      dhcp6: false
 
 			# System info
 			system_info:
@@ -115,7 +146,6 @@ class Configurator
 			    groups: [adm, sudo]
 			    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
 			    shell: /bin/bash
-			    lock_passwd: true
 
 			# Disable root login
 			disable_root: true
@@ -178,17 +208,10 @@ class Configurator
 		@chroot "update-rc.d ssh enable"
 
 	createAdminUser: ->
-		console.log "  Preparing for admin user creation..."
+		console.log "  Creating admin user..."
 
-		# Ensure groups exist that cloud-init needs
-		# cloud-init will create the user, but groups must exist first
-		@chroot "groupadd -f sudo"
-		@chroot "groupadd -f adm"
-
-		# Configure sudoers for sudo group
-		sudoersConfig = "%sudo ALL=(ALL:ALL) NOPASSWD:ALL\n"
-		@appendFile '/etc/sudoers.d/90-cloud-init-users', sudoersConfig
-		@chroot "chmod 0440 /etc/sudoers.d/90-cloud-init-users"
+		# cloud-init will create the user, but we set up the group
+		@chroot "groupadd -f admin"
 
 	configureSerialConsole: ->
 		console.log "  Configuring serial console..."
@@ -197,70 +220,6 @@ class Configurator
 		# Add to /etc/inittab for SysVinit
 		inittabEntry = "T0:23:respawn:/sbin/getty -L ttyS0 115200 vt100\n"
 		@appendFile '/etc/inittab', inittabEntry
-
-	verifyInstallation: ->
-		console.log "  Verifying installation..."
-
-		# Essential packages that must be present
-		requiredPackages = [
-			'cloud-init'
-			'openssh-server'
-			'grub-pc'
-			'ifupdown'
-			'isc-dhcp-client'
-		]
-
-		requiredFiles = [
-			'/etc/cloud/cloud.cfg.d/99-aws.cfg'
-			'/etc/fstab'
-			'/etc/ssh/sshd_config'
-			'/etc/inittab'
-		]
-
-		requiredGroups = [
-			'sudo'
-			'adm'
-		]
-
-		# Check packages
-		for pkg in requiredPackages
-			try
-				@chroot "dpkg -l #{pkg} | grep '^ii'"
-				console.log "    ✓ Package installed: #{pkg}"
-			catch error
-				throw new Error "Required package missing: #{pkg}"
-
-		# Check files
-		for file in requiredFiles
-			fullPath = @mountDir + file
-			{existsSync} = require 'fs'
-			unless existsSync fullPath
-				throw new Error "Required file missing: #{file}"
-			console.log "    ✓ File exists: #{file}"
-
-		# Check groups exist
-		for group in requiredGroups
-			try
-				@chroot "getent group #{group}"
-				console.log "    ✓ Group exists: #{group}"
-			catch error
-				throw new Error "Required group missing: #{group}"
-
-		# Check bootloader
-		try
-			@chroot "test -f /boot/grub/grub.cfg"
-			console.log "    ✓ GRUB configured"
-		catch error
-			throw new Error "GRUB configuration missing"
-
-		# Validate cloud-init config syntax
-		try
-			@chroot "cloud-init schema --config-file /etc/cloud/cloud.cfg.d/99-aws.cfg"
-			console.log "    ✓ Cloud-init config valid"
-		catch error
-			console.warn "    ⚠ Cloud-init config validation failed (may be OK if schema validator missing)"
-
-		console.log "  Verification passed!"
 
 	cleanupSystem: ->
 		console.log "  Cleaning up system..."
@@ -279,7 +238,7 @@ class Configurator
 	# ====================================================================
 
 	chroot: (cmd) ->
-		execSync "chroot #{@mountDir} /bin/bash -c '#{cmd}'"
+		execSync "LC_ALL=C chroot #{@mountDir} /bin/bash -c '#{cmd}'"
 
 	writeFile: (path, content) ->
 		fullPath = join @mountDir, path

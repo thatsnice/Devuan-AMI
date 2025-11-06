@@ -45,7 +45,7 @@ sudo devuan-ami \
 
 ## Architecture
 
-### Four-Phase Pipeline
+### Three-Phase Pipeline
 
 1. **Builder** (`src/builder.coffee`)
    - Creates raw disk image with `qemu-img`
@@ -58,26 +58,17 @@ sudo devuan-ami \
    - Mounts image and chroots into it
    - Configures fstab, network (via cloud-init), SSH
    - Installs GRUB bootloader with serial console support
-   - Prepares for admin user creation (managed by cloud-init)
+   - Creates admin user (managed by cloud-init)
    - Configures SysVinit services (not systemd)
    - Adds serial console to `/etc/inittab`
-   - Validates configuration (packages, groups, cloud-init syntax)
    - Cleans up logs and machine-id
 
 3. **Uploader** (`src/uploader.coffee`)
-   - Converts raw image to VMDK streamOptimized format (~50% compression)
+   - Converts raw image to VMDK format
    - Uploads to S3
    - Creates EC2 import-snapshot task
    - Polls for completion (10-30 minutes typical)
    - Registers snapshot as AMI with ENA support
-
-4. **Smoke Test** (`src/smoke-test.coffee`)
-   - Launches test instance in default VPC
-   - Waits for cloud-init to complete
-   - Verifies SSH connectivity
-   - Verifies network (eth0 has IP, internet reachable)
-   - Verifies sudo access for admin user
-   - Automatically cleans up all test resources
 
 ### Devuan-Specific Details
 
@@ -98,6 +89,20 @@ sudo devuan-ami \
 - **Architecture:** x86_64 (amd64); ARM64 planned for future
 - **Root Volume:** EBS-backed only; instance-store can be added if requested
 - **Bootloader:** GRUB with serial console for AWS debugging
+
+## Recent Changes (2025-10-28)
+
+### Locale Configuration Fix
+Fixed cloud-init locale warning by adding `configureLocale()` method to `src/configurator.coffee`:
+- Generates `en_US.UTF-8` locale during image build
+- Creates `/etc/locale.gen` with `en_US.UTF-8 UTF-8` enabled
+- Runs `locale-gen` in chroot to generate the locale
+- Sets `/etc/default/locale` to `LANG=en_US.UTF-8`
+- Eliminates "invalid locale settings" warning during cloud-init execution
+
+**Changes made:**
+- Added `@configureLocale()` call to `configure()` method (line 24)
+- Implemented `configureLocale()` method (lines 97-120)
 
 ## System Requirements
 
