@@ -56,7 +56,7 @@ options =
 	'work-dir':
 		type:        'string'
 		description: 'Working directory for build artifacts'
-		default:     '/tmp/devuan-ami'
+		default:     'tmp/devuan-ami'
 
 	resume:
 		type:        'boolean'

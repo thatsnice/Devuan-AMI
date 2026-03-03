@@ -121,7 +121,7 @@ class Uploader
 			aws ec2 import-snapshot \
 				--region #{@region} \
 				--description "#{@amiName}" \
-				--disk-container file://#{containerFile}
+				--disk-container file://#{require('path').resolve(containerFile)}
 			"""
 
 		output = execSync cmd

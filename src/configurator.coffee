@@ -131,11 +131,13 @@ class Configurator
 			    timeout: 10
 			    max_wait: 30
 
-			# Preserve traditional network interface names (eth0, eth1, etc.)
+			# Match any ethernet interface regardless of driver-assigned name (t2 vs t3 etc.)
 			network:
 			  version: 2
 			  ethernets:
-			    eth0:
+			    primary:
+			      match: {}
+			      set-name: eth0
 			      dhcp4: true
 			      dhcp6: false
 
@@ -172,7 +174,7 @@ class Configurator
 			GRUB_DEFAULT=0
 			GRUB_TIMEOUT=0
 			GRUB_DISTRIBUTOR=Devuan
-			GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 console=ttyS0,115200n8 nvme_core.io_timeout=4294967295"
+			GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 console=ttyS0,115200n8 nvme_core.io_timeout=4294967295 net.ifnames=0 biosdevname=0"
 			GRUB_CMDLINE_LINUX=""
 			GRUB_TERMINAL="console serial"
 			GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"
