@@ -58,6 +58,10 @@ class Configurator
 			catch error
 				console.warn "Warning: Failed to unmount #{@mountDir}#{path}"
 
+		if @loopDev
+			console.log "  Running fsck to seal filesystem..."
+			execSync "e2fsck -fy #{@loopDev}p1"
+
 		# Detach loop device
 		if @loopDev
 			try

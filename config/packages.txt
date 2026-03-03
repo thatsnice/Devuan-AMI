@@ -4,6 +4,7 @@
 # Kernel and bootloader
 linux-image-cloud-amd64
 grub-pc
+e2fsprogs
 
 # Cloud integration
 cloud-init
