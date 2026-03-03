@@ -28,6 +28,7 @@ class SmokeTest
 			@createKeyPair()
 			@launchInstance()
 			@waitForInstance()
+			@waitForSSH()
 			@waitForCloudInit()
 			@verifySSH()
 			@verifyNetwork()
@@ -171,26 +172,31 @@ class SmokeTest
 
 		console.log "    ✓ Instance running at #{@publicIp}"
 
-	waitForCloudInit: ->
-		console.log "  Waiting for cloud-init to complete..."
+	waitForSSH: ->
+		console.log "  Waiting for SSH to become available..."
 
-		maxAttempts = 60
+		maxAttempts = 60    # 5 minutes at 5s intervals
 		attempt     = 0
 
 		while attempt < maxAttempts
 			try
-				# Check if cloud-init is done
-				@ssh "cloud-init status --wait --long", silent: true
-				console.log "    ✓ Cloud-init completed"
+				@ssh "true", silent: true
+				console.log "    ✓ SSH is reachable"
 				return
-			catch error
-				# SSH might not be ready yet, or cloud-init still running
+			catch
 				attempt++
-				if attempt >= maxAttempts
-					throw new Error "Cloud-init did not complete within 5 minutes"
-
-				# Wait 5 seconds between attempts
+				throw new Error "SSH not available after 5 minutes" if attempt >= maxAttempts
 				execSync "sleep 5"
+
+	waitForCloudInit: ->
+		console.log "  Waiting for cloud-init to complete..."
+
+		# cloud-init status --wait blocks until done - run it once with a long timeout
+		try
+			@ssh "cloud-init status --wait --long", silent: true, timeout: 20 * 60 * 1000
+			console.log "    ✓ Cloud-init completed"
+		catch error
+			throw new Error "Cloud-init did not complete within 20 minutes"
 
 	# ====================================================================
 	# Verification
@@ -303,7 +309,8 @@ class SmokeTest
 	# ====================================================================
 
 	ssh: (command, opts = {}) ->
-		silent = opts.silent ? false
+		silent  = opts.silent  ? false
+		timeout = opts.timeout ? 30_000
 
 		# SSH with strict host key checking disabled (this is a new host)
 		sshCmd = """
@@ -317,11 +324,8 @@ class SmokeTest
 
 		stdio = if silent then 'pipe' else 'inherit'
 
-		result = execSync sshCmd, encoding: 'utf8', stdio: stdio
+		result = execSync sshCmd, encoding: 'utf8', stdio: stdio, timeout: timeout
 
-		if silent
-			result.toString()
-		else
-			result
+		if silent then result.toString() else result
 
 module.exports = SmokeTest
