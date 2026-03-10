@@ -37,22 +37,21 @@ class SmokeTest
 			console.log "\n✓ Smoke test passed!"
 			console.log "  Instance is ready and fully functional"
 
+			@cleanup()
 			true
 
 		catch error
 			console.error "\n✗ Smoke test failed: #{error.message}"
-			console.error "  You can investigate manually:"
+			console.error "  Instance left running for investigation:"
 			console.error "  Instance ID: #{@instanceId}" if @instanceId
 			console.error "  Public IP:   #{@publicIp}" if @publicIp
 			console.error "  SSH key:     #{@keyPath}" if existsSync(@keyPath)
 			console.error ""
 			console.error "  To connect: ssh -i #{@keyPath} admin@#{@publicIp}" if @publicIp and existsSync(@keyPath)
+			console.error "  To clean up: aws ec2 terminate-instances --region #{@region} --instance-ids #{@instanceId}" if @instanceId
 			console.error ""
 
 			false
-
-		finally
-			@cleanup()
 
 	# ====================================================================
 	# Setup

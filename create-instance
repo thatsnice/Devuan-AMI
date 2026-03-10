@@ -1,8 +1,8 @@
 #!/bin/bash
 
 aws ec2 run-instances              \
-  --image-id ami-0a0195724f881b811 \
-  --instance-type t2.micro         \
+  --image-id ami-031ab6a89f1fa4ee8 \
+  --instance-type t3.micro         \
   --region us-west-2               \
   --key-name rdeforest             \
   --security-group-ids sg-09a573677923495f3
