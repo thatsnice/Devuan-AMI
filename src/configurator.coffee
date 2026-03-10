@@ -85,15 +85,14 @@ class Configurator
 		@writeFile '/etc/fstab', fstab
 
 	configureNetwork: ->
-		console.log "  Configuring network (cloud-init managed)..."
+		console.log "  Configuring network..."
 
-		# Let cloud-init handle network configuration
-		# Disable traditional /etc/network/interfaces management
 		interfaces = """
-			# Network configuration is managed by cloud-init
-			# See /etc/cloud/cloud.cfg.d/ for configuration
 			auto lo
 			iface lo inet loopback
+
+			auto eth0
+			iface eth0 inet dhcp
 			"""
 
 		@writeFile '/etc/network/interfaces', interfaces
@@ -135,15 +134,8 @@ class Configurator
 			    timeout: 10
 			    max_wait: 30
 
-			# Match any ethernet interface regardless of driver-assigned name (t2 vs t3 etc.)
 			network:
-			  version: 2
-			  ethernets:
-			    primary:
-			      match: {}
-			      set-name: eth0
-			      dhcp4: true
-			      dhcp6: false
+			  config: disabled
 
 			# System info
 			system_info:
