@@ -139,26 +139,13 @@ class Configurator
 			network:
 			  config: disabled
 
-			# System info
-			system_info:
-			  default_user:
-			    name: admin
-			    groups: [adm, sudo]
-			    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
-			    shell: /bin/bash
-
-			# Disable root login
 			disable_root: true
-
-			# Manage /etc/hosts
 			manage_etc_hosts: true
 
-			# Grow root partition to fill disk
 			growpart:
 			  mode: auto
 			  devices: ['/']
 
-			# Resize filesystem
 			resize_rootfs: true
 			"""
 
@@ -210,8 +197,10 @@ class Configurator
 	createAdminUser: ->
 		console.log "  Creating admin user..."
 
-		# cloud-init will create the user, but we set up the group
-		@chroot "groupadd -f admin"
+		@chroot "useradd -m -s /bin/bash -G adm,sudo admin"
+		@writeFile '/etc/sudoers.d/admin', "admin ALL=(ALL) NOPASSWD:ALL\n"
+		@chroot "chmod 440 /etc/sudoers.d/admin"
+		@chroot "sed -i 's/name: debian/name: admin/' /etc/cloud/cloud.cfg"
 
 	configureSerialConsole: ->
 		console.log "  Configuring serial console..."
