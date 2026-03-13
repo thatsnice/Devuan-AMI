@@ -197,7 +197,7 @@ class Configurator
 	createAdminUser: ->
 		console.log "  Creating admin user..."
 
-		@chroot "useradd -m -s /bin/bash -G adm,sudo admin"
+		@chroot "id admin 2>/dev/null || useradd -m -s /bin/bash -G adm,sudo admin"
 		@writeFile '/etc/sudoers.d/admin', "admin ALL=(ALL) NOPASSWD:ALL\n"
 		@chroot "chmod 440 /etc/sudoers.d/admin"
 		@chroot 'sed -i "s/name: debian/name: admin/" /etc/cloud/cloud.cfg'
