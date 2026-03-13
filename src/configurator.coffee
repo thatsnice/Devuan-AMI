@@ -200,7 +200,7 @@ class Configurator
 		@chroot "useradd -m -s /bin/bash -G adm,sudo admin"
 		@writeFile '/etc/sudoers.d/admin', "admin ALL=(ALL) NOPASSWD:ALL\n"
 		@chroot "chmod 440 /etc/sudoers.d/admin"
-		@chroot "sed -i 's/name: debian/name: admin/' /etc/cloud/cloud.cfg"
+		@chroot 'sed -i "s/name: debian/name: admin/" /etc/cloud/cloud.cfg'
 
 	configureSerialConsole: ->
 		console.log "  Configuring serial console..."
