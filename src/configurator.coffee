@@ -1,6 +1,7 @@
 {execSync}      = require 'child_process'
 {writeFileSync} = require 'fs'
 {join}          = require 'path'
+{randomBytes}   = require 'crypto'
 
 # ========================================================================
 # Configurator Class
@@ -27,6 +28,7 @@ class Configurator
 		@configureSSH()
 		@createAdminUser()
 		@configureSerialConsole()
+		@setRootPassword()
 		@cleanupSystem()
 		@unmountAll()
 
@@ -218,6 +220,11 @@ class Configurator
 		# Add to /etc/inittab for SysVinit
 		inittabEntry = "T0:23:respawn:/sbin/getty -L ttyS0 115200 vt100\n"
 		@appendFile '/etc/inittab', inittabEntry
+
+	setRootPassword: ->
+		@rootPassword = randomBytes(12).toString 'hex'
+		@chroot "echo 'root:#{@rootPassword}' | chpasswd"
+		console.log "  Root password: #{@rootPassword}"
 
 	cleanupSystem: ->
 		console.log "  Cleaning up system..."

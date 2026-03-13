@@ -251,6 +251,7 @@ main = (processObj = process) ->
 			console.log "\nStep 2/3: Configuring for AWS..."
 			configurator = new Configurator values, imagePath
 			configurator.configure()
+			state.set 'root-password', configurator.rootPassword
 			state.complete 'configure'
 		else
 			console.log "\nStep 2/3: Configuring for AWS... (skipped, already done)"
@@ -261,8 +262,9 @@ main = (processObj = process) ->
 		amiId = uploader.upload()
 
 		console.log "\n✓ AMI created successfully!"
-		console.log "  AMI ID: #{amiId}"
-		console.log "  Region: #{values.region}"
+		console.log "  AMI ID:        #{amiId}"
+		console.log "  Region:        #{values.region}"
+		console.log "  Root password: #{state.get 'root-password'}"
 
 	catch error
 		console.error "\n✗ Build failed: #{error.message}"
