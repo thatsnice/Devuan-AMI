@@ -155,8 +155,12 @@ class Configurator
 
 		# cloud-init-main replaced the old cloud-init init script but is a no-op
 		# under SysVinit. Patch it to actually run the network init stage.
-		@chroot 'sed -i "s/        # This is currently a no-op under sysvinit/        \$DAEMON init/" /etc/init.d/cloud-init-main'
-		@chroot 'sed -i "/^        :$/d" /etc/init.d/cloud-init-main'
+		# Write a helper script to avoid tab-vs-space quoting issues.
+		patchScript = "#!/bin/sh\n" +
+			"sed -i 's/^\\t# This is currently a no-op under sysvinit$/\\t$DAEMON init/' /etc/init.d/cloud-init-main\n" +
+			"sed -i '/^\\t:$/d' /etc/init.d/cloud-init-main\n"
+		@writeFile '/tmp/patch-cloud-init.sh', patchScript
+		@chroot 'chmod +x /tmp/patch-cloud-init.sh && /tmp/patch-cloud-init.sh && rm /tmp/patch-cloud-init.sh'
 
 	installGrub: ->
 		console.log "  Installing GRUB bootloader..."
