@@ -153,6 +153,11 @@ class Configurator
 
 		@chroot 'sed -i "/^cloud_config_modules:/a\\ - ssh" /etc/cloud/cloud.cfg'
 
+		# cloud-init-main replaced the old cloud-init init script but is a no-op
+		# under SysVinit. Patch it to actually run the network init stage.
+		@chroot 'sed -i "s/        # This is currently a no-op under sysvinit/        \$DAEMON init/" /etc/init.d/cloud-init-main'
+		@chroot 'sed -i "/^        :$/d" /etc/init.d/cloud-init-main'
+
 	installGrub: ->
 		console.log "  Installing GRUB bootloader..."
 
