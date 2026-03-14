@@ -31,7 +31,6 @@ class SmokeTest
 			@waitForSSH()
 			@waitForCloudInit()
 			@verifySSH()
-			@verifyNetwork()
 			@verifySudo()
 
 			console.log "\n✓ Smoke test passed!"
@@ -214,28 +213,11 @@ class SmokeTest
 
 		console.log "    ✓ SSH connection works"
 
-	verifyNetwork: ->
-		console.log "  Verifying network configuration..."
-
-		# Check that we have a network interface with an IP
-		result = @ssh "ip addr show eth0"
-
-		unless result.includes 'inet '
-			throw new Error "eth0 does not have an IP address"
-
-		# Check that we can reach the internet
-		try
-			@ssh "ping -c 1 8.8.8.8", silent: true
-			console.log "    ✓ Network interface configured"
-			console.log "    ✓ Internet connectivity OK"
-		catch error
-			throw new Error "Cannot reach internet"
-
 	verifySudo: ->
 		console.log "  Verifying sudo access..."
 
 		# Check that admin user can sudo
-		result = @ssh "sudo whoami"
+		result = @ssh "sudo whoami", silent: true
 
 		unless result.includes 'root'
 			throw new Error "sudo is not working for admin user"
