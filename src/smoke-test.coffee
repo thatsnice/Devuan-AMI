@@ -71,6 +71,9 @@ class SmokeTest
 		writeFileSync @keyPath, result.toString()
 		execSync "chmod 600 #{@keyPath}"
 
+		if process.env.SUDO_UID
+			execSync "chown #{process.env.SUDO_UID}:#{process.env.SUDO_GID} #{@keyPath}"
+
 		console.log "    ✓ Key pair created: #{@keyName}"
 
 	launchInstance: ->
@@ -204,7 +207,7 @@ class SmokeTest
 	verifySSH: ->
 		console.log "  Verifying SSH access..."
 
-		result = @ssh "echo 'SSH OK'"
+		result = @ssh "echo 'SSH OK'", silent: true
 
 		unless result.includes 'SSH OK'
 			throw new Error "SSH connection failed"
