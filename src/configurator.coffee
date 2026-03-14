@@ -151,6 +151,8 @@ class Configurator
 
 		@writeFile '/etc/cloud/cloud.cfg.d/99-aws.cfg', cloudConfig
 
+		@chroot 'sed -i "/^cloud_config_modules:/a\\   - ssh" /etc/cloud/cloud.cfg'
+
 	installGrub: ->
 		console.log "  Installing GRUB bootloader..."
 
