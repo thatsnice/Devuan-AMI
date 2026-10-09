@@ -38,6 +38,7 @@ class SmokeTest
 			@verifySSH()
 			@verifySudo()
 			@verifyRootGrown()
+			@verifyNetworkStage()
 
 			console.log "\n✓ Smoke test passed!"
 			console.log "  Instance is ready and fully functional"
@@ -134,6 +135,13 @@ class SmokeTest
 				--cidr 0.0.0.0/0
 		"""
 
+		# User-data marker: exercises the exact path the cloud-init-main race
+		# broke. If the network ("init") stage runs, it dispatches this to
+		# /var/lib/cloud/instance/scripts/ and modules:final executes it,
+		# creating the marker file verifyNetworkStage() checks for.
+		userDataPath = join @workDir, 'smoke-user-data.sh'
+		writeFileSync userDataPath, "#!/bin/bash\ntouch /var/lib/cloud/SMOKE_USERDATA_RAN\n"
+
 		# Launch instance
 		result = execSync """
 			aws ec2 run-instances \
@@ -144,6 +152,7 @@ class SmokeTest
 				--security-group-ids #{@securityGroupId} \
 				--subnet-id #{subnetId} \
 				--block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":#{@volumeSizeGB}}}]' \
+				--user-data file://#{userDataPath} \
 				--associate-public-ip-address \
 				--tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=devuan-ami-smoke-test}]' \
 				--query 'Instances[0].InstanceId' \
@@ -241,6 +250,25 @@ class SmokeTest
 			throw new Error "Root filesystem is #{sizeGB}GB; expected it to grow past the #{@imageSizeGB}GB image (growpart/resizefs did not run)"
 
 		console.log "    ✓ Root filesystem is #{sizeGB}GB"
+
+	verifyNetworkStage: ->
+		console.log "  Verifying cloud-init network stage and user-data dispatch..."
+
+		log = @ssh "sudo cat /var/log/cloud-init.log", silent: true
+
+		if log.includes 'Traceback'
+			throw new Error "cloud-init logged a Traceback (network stage likely crashed)"
+
+		# The network stage logs "running 'init'"; init-local logs "running 'init-local'".
+		unless log.includes "running 'init' "
+			throw new Error "cloud-init network ('init') stage did not run"
+
+		marker = @ssh "sudo test -f /var/lib/cloud/SMOKE_USERDATA_RAN && echo PRESENT || echo MISSING", silent: true
+
+		unless marker.includes 'PRESENT'
+			throw new Error "user-data never executed (network stage did not dispatch scripts)"
+
+		console.log "    ✓ Network stage ran and user-data was dispatched"
 
 	# ====================================================================
 	# Cleanup

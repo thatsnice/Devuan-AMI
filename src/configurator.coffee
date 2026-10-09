@@ -153,12 +153,35 @@ class Configurator
 
 		@chroot 'sed -i "/^cloud_config_modules:/a\\ - ssh" /etc/cloud/cloud.cfg'
 
-		# cloud-init-main replaced the old cloud-init init script but is a no-op
-		# under SysVinit. Patch it to actually run the network init stage.
-		# Write a helper script to avoid tab-vs-space quoting issues.
+		# The cloud-init-main init script (Devuan's rename of the old cloud-init
+		# script, which runs the network "init" stage) ships broken under
+		# SysVinit. Three defects, all patched here via a helper script written
+		# to /tmp so sed's \t escape works without shell-quoting grief:
+		#
+		#   1. start) action is an explicit no-op -> make it run `$DAEMON init`.
+		#   2. Required-Start lacks cloud-init-local, so insserv parks both at
+		#      S01 and startpar runs them concurrently; they then race to create
+		#      /var/lib/cloud/data and the network stage dies with FileExistsError
+		#      ~1 boot in N. Add the dependency so it is ordered strictly after.
+		#   3. Provides was renamed to cloud-init-main but cloud-config/cloud-final
+		#      still Require the old `cloud-init` name -> a dangling dependency.
+		#      Provide that name too so modules:config is ordered after the
+		#      network stage.
+		#
+		# Verify the no-op and ordering edits actually applied, then recompute
+		# boot ordering from the edited headers. Fail the build loudly if an
+		# upstream change makes a patch silently miss.
 		patchScript = "#!/bin/sh\n" +
-			"sed -i 's/^\\t# This is currently a no-op under sysvinit$/\\t$DAEMON init/' /etc/init.d/cloud-init-main\n" +
-			"sed -i '/^\\t:$/d' /etc/init.d/cloud-init-main\n"
+			"set -e\n" +
+			"S=/etc/init.d/cloud-init-main\n" +
+			"sed -i 's/^\\t# This is currently a no-op under sysvinit$/\\t$DAEMON init/' \"$S\"\n" +
+			"sed -i '/^\\t:$/d' \"$S\"\n" +
+			"sed -i '/^# Required-Start:/ s/$/ cloud-init-local/' \"$S\"\n" +
+			"sed -i '/^# Provides:/ s/$/ cloud-init/' \"$S\"\n" +
+			"grep -q '[$]DAEMON init' \"$S\" || { echo 'cloud-init-main no-op patch did not apply' >&2; exit 1; }\n" +
+			"grep -q '^# Required-Start:.*cloud-init-local' \"$S\" || { echo 'cloud-init-main ordering patch did not apply' >&2; exit 1; }\n" +
+			"update-rc.d -f cloud-init-main remove\n" +
+			"update-rc.d cloud-init-main defaults\n"
 		@writeFile '/tmp/patch-cloud-init.sh', patchScript
 		@chroot 'chmod +x /tmp/patch-cloud-init.sh && /tmp/patch-cloud-init.sh && rm /tmp/patch-cloud-init.sh'
 
