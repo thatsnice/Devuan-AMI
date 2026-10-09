@@ -2,6 +2,48 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Resume here: ON HOLD since 2026-10-07
+
+Robert put this project on hold on 2026-10-07 so he can focus on the venture
+with Jamin. It will likely be back in scope later. A Claude session wrote this
+note on 2026-10-09 while reconciling work from Robert's laptop and desktop.
+
+**State.** `main` has fixes for two AMI bugs. No build has verified either yet:
+- Root fs didn't grow to fill a larger volume, because `growpart` was missing
+  (`7edeb51`). Reported by thunder-mountain on 2026-10-02.
+- The cloud-init network stage raced `cloud-init-local` and was skipped
+  roughly 1 boot in N, so user-data never ran (`f6a60ff`). Hit
+  RentCoordinator from 2026-06-10 to 06-12.
+
+The latest AMI is `ami-0981e1199de28a49f` (us-west-2, built 2026-06-13). It
+has an earlier version of the race fix and no `growpart`. Its smoke test
+passed once.
+
+**Next step.** Build a new AMI, then run the smoke test several times
+(5 to 10 launches), because one passing run can't rule out an intermittent
+race. Then point `create-instance` at the new AMI. It still names
+`ami-03a3c3aebfb1434b4`.
+
+**Known bugs and open questions**
+- `npm test`: 6 of the 8 tests in `test/app.test.coffee` fail on `main`.
+  The CLI's ProcessExit is thrown asynchronously, after each test has
+  ended. This failure predates 2026-10-09.
+- An uncommitted June change added `locales-all`. It was dropped on
+  2026-10-09: cloud-init depends on `locales`, so `configureLocale`'s
+  `locale-gen` already produces `en_US.UTF-8`. Nobody recorded why it was
+  added. Re-add it if a build shows locale warnings.
+- Feedback from users of the AMI (thunder-mountain, 2026-10-02): `dig`
+  (dnsutils) and `rsync` are not installed, and Debian's `caddy` package
+  has no SysVinit script.
+- Workaround for instances from older AMIs that skip the network stage:
+  ```
+  sudo /usr/bin/cloud-init init
+  sudo rm -f /var/lib/cloud/instances/*/sem/config_scripts_user
+  sudo /usr/bin/cloud-init modules --mode final
+  ```
+  The full incident write-up was `obsolete-FIXME.md`; see git history
+  before this note.
+
 ## Project Overview
 
 Creates Devuan AWS Machine Images (AMIs) for EC2 using debootstrap. Built in CoffeeScript as a CLI tool that can be packaged as a .deb for distribution.
