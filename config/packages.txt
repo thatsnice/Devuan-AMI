@@ -9,6 +9,8 @@ e2fsprogs
 # Cloud integration
 cloud-init
 python3-cffi-backend
+# growpart: without it cc_growpart silently no-ops and cc_resizefs still
+# logs SUCCESS, leaving / at the image size on a larger volume
 cloud-guest-utils
 
 # Networking
@@ -24,3 +26,7 @@ systemd-standalone-sysusers
 sudo
 adduser
 passwd
+
+# Tools (lsof, wget, cron, systemctl) are installed post-bootstrap by the
+# configurator: cron pulls cron-daemon-common, whose systemd-sysusers
+# dependency debootstrap cannot order correctly inside --include.

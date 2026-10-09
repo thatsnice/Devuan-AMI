@@ -20,6 +20,7 @@ class Configurator
 	configure: ->
 		@mountImage()
 		@mountPseudoFilesystems()
+		@installPackages()
 		@configureFstab()
 		@configureNetwork()
 		@configureLocale()
@@ -74,6 +75,29 @@ class Configurator
 	# ====================================================================
 	# Configuration Steps
 	# ====================================================================
+
+	installPackages: ->
+		console.log "  Installing additional packages..."
+
+		# Runtime tools kept out of debootstrap --include: cron pulls
+		# cron-daemon-common, whose `systemd | systemd-standalone-sysusers`
+		# dependency debootstrap configures in the wrong order. apt orders it
+		# correctly now that the base system (incl. systemd-standalone-sysusers)
+		# is in place.
+		tools = 'wget cron lsof systemctl'
+
+		# apt needs working DNS inside the chroot.
+		execSync "cp /etc/resolv.conf #{@mountDir}/etc/resolv.conf"
+
+		# Block maintainer scripts from starting services in a chroot with no
+		# running init; update-rc.d still enables them for real boots.
+		@writeFile '/usr/sbin/policy-rc.d', "#!/bin/sh\nexit 101\n"
+		@chroot "chmod +x /usr/sbin/policy-rc.d"
+
+		@chroot "apt-get update"
+		@chroot "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends #{tools}"
+
+		@chroot "rm -f /usr/sbin/policy-rc.d"
 
 	configureFstab: ->
 		console.log "  Configuring fstab..."
