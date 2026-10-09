@@ -9,6 +9,7 @@ e2fsprogs
 # Cloud integration
 cloud-init
 python3-cffi-backend
+cloud-guest-utils
 
 # Networking
 ifupdown

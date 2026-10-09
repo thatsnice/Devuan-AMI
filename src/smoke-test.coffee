@@ -15,6 +15,11 @@ class SmokeTest
 		@instanceId = null
 		@publicIp   = null
 
+		# Launch with a root volume bigger than the image so we can verify
+		# that cloud-init grows the partition and filesystem to fill it
+		@imageSizeGB  = parseInt @opts['disk-size'], 10
+		@volumeSizeGB = @imageSizeGB + 4
+
 	# ====================================================================
 	# Main Test Flow
 	# ====================================================================
@@ -32,6 +37,7 @@ class SmokeTest
 			@waitForCloudInit()
 			@verifySSH()
 			@verifySudo()
+			@verifyRootGrown()
 
 			console.log "\n✓ Smoke test passed!"
 			console.log "  Instance is ready and fully functional"
@@ -137,6 +143,7 @@ class SmokeTest
 				--key-name #{@keyName} \
 				--security-group-ids #{@securityGroupId} \
 				--subnet-id #{subnetId} \
+				--block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":#{@volumeSizeGB}}}]' \
 				--associate-public-ip-address \
 				--tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=devuan-ami-smoke-test}]' \
 				--query 'Instances[0].InstanceId' \
@@ -223,6 +230,17 @@ class SmokeTest
 			throw new Error "sudo is not working for admin user"
 
 		console.log "    ✓ Sudo access works"
+
+	verifyRootGrown: ->
+		console.log "  Verifying root filesystem grew to fill #{@volumeSizeGB}GB volume..."
+
+		result = @ssh "df -BG --output=size / | tail -n 1", silent: true
+		sizeGB = parseInt result.trim(), 10
+
+		unless sizeGB > @imageSizeGB
+			throw new Error "Root filesystem is #{sizeGB}GB; expected it to grow past the #{@imageSizeGB}GB image (growpart/resizefs did not run)"
+
+		console.log "    ✓ Root filesystem is #{sizeGB}GB"
 
 	# ====================================================================
 	# Cleanup
